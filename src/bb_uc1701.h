@@ -26,7 +26,10 @@ enum {
 // Uncomment this define to allow the pixel functions to work
 // It requires an extra 1024 bytes of memory (rare on Arduinos)
 //
-//#define BACKING_RAM
+#define BACKING_RAM
+
+// bit bang spi
+#define UC1701_USE_SOFT_SPI 1
 
 // Write a block of pixel data from FLASH ROM to the LCD
 void uc1701WriteFlashBlock(unsigned char *ucBuf, int iLen);
@@ -59,6 +62,7 @@ void uc1701PowerDown(void);
 // If not using the LED backlight, set iLED to -1
 //
 int uc1701Init(int iDC, int iReset, int iLED, int iCS, byte bFlip180, byte bInvert, int32_t iClock);
+void uc1701SetSoftSPIPins(int sda, int scl);
 //
 // Fill the display with a byte pattern
 //

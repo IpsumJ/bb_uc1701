@@ -2,7 +2,11 @@
 #ifdef __AVR__
 #include <avr/pgmspace.h>
 #endif
+
+#ifndef UC1701_USE_SOFT_SPI
 #include <SPI.h>
+#endif
+
 #include <bb_uc1701.h>
 
 // small font
@@ -486,6 +490,8 @@ const byte ucSmallFont[]PROGMEM = {
   0x41,0x41,0x3e,0x08,0x00,0x02,0x01,0x02,0x01,0x00,0x00,0x3c,0x26,0x23,0x26,0x3c};
 
 static int csPin = 10;
+static int sspi_sda = 0;
+static int sspi_scl = 0;
 
 static unsigned int iScreenOffset; // current write offset of screen data
 #ifdef BACKING_RAM
@@ -495,6 +501,9 @@ static byte iDCPin, iResetPin, iLEDPin;
 static byte bFlipped = 0; // indicates display is flipped 180 degrees
 static void uc1701WriteCommand(unsigned char c);
 void uc1701WriteDataBlock(unsigned char *ucBuf, int iLen);
+
+void spi_transfere(unsigned char c);
+void spi_transfere_buf(unsigned char *ucBuf, int iLen);
 
 typedef enum
 {
@@ -555,11 +564,13 @@ int uc1701Init(int iDC, int iReset, int iLED, int iCS, byte bFlip180, byte bInve
         csPin = iCS;
         iResetPin = iReset;
         iLEDPin = iLED;
+#ifndef UC1701_USE_SOFT_SPI
 	if (iClock != -1) // don't reset the SPI parameters if -1
 	{
         	SPI.begin();
         	SPI.beginTransaction(SPISettings(iClock, MSBFIRST, SPI_MODE0));
 	}
+#endif
         pinMode(csPin,OUTPUT);
         digitalWrite(csPin, HIGH);
 
@@ -596,6 +607,15 @@ int uc1701Init(int iDC, int iReset, int iLED, int iCS, byte bFlip180, byte bInve
   return 0;
 
 } /* uc1701Init() */
+
+void uc1701SetSoftSPIPins(int sda, int scl) {
+#ifdef UC1701_USE_SOFT_SPI
+	pinMode(sda, OUTPUT);
+	pinMode(scl, OUTPUT);
+#endif
+	sspi_sda = sda;
+	sspi_scl = scl;
+}
 
 //
 // Draw a 16x16 tile in any of 4 rotated positions
@@ -708,7 +728,7 @@ void uc1701PowerDown()
 static void uc1701WriteCommand(unsigned char c)
 {
   digitalWrite(csPin, LOW);
-  SPI.transfer(c);
+  spi_transfere(c);
   digitalWrite(csPin, HIGH);
 } /* uc1701WriteCommand() */
 
@@ -842,12 +862,42 @@ int i;
         i = 32;
      else
         i = iLen;
-     SPI.transfer(ucBuf, i);
+     spi_transfere_buf(ucBuf, i);
      ucBuf += i;
      iLen -= i;
   }
   digitalWrite(csPin, HIGH);
 } /* uc1701WriteDataBlock() */
+
+void spi_transfere(unsigned char c) {
+#ifndef UC1701_USE_SOFT_SPI
+	SPI.transfer(c);
+#else
+#if not defined (_VARIANT_ARDUINO_DUE_X_) && not defined (_VARIANT_ARDUINO_ZERO_)
+	shiftOut(sspi_sda, sspi_scl, MSBFIRST, c);
+#else
+	int8_t i;
+	for (i=7; i>=0; i--) {
+		digitalWrite(sspi_scl, LOW);
+		delayMicroseconds(1);
+		if (c & _BV(i))
+			digitalWrite(sspi_sda, HIGH);
+		else
+			digitalWrite(sspi_sda, LOW);
+		digitalWrite(sspi_scl, HIGH);
+	}
+#endif
+#endif
+}
+void spi_transfere_buf(unsigned char *ucBuf, int iLen) {
+#ifndef UC1701_USE_SOFT_SPI
+	SPI.transfer(ucBuf, iLen);
+#else
+	for (int i = 0; i < iLen; i++) {
+		spi_transfere(*(ucBuf + i));
+	}
+#endif
+}
 
 //
 // Load a 128x64 1-bpp Windows bitmap
