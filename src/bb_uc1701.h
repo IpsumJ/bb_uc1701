@@ -26,7 +26,7 @@ enum {
 // Uncomment this define to allow the pixel functions to work
 // It requires an extra 1024 bytes of memory (rare on Arduinos)
 //
-#define BACKING_RAM
+//#define BACKING_RAM
 
 // bit bang spi
 #define UC1701_USE_SOFT_SPI 1
